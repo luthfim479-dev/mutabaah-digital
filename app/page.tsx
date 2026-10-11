@@ -20,7 +20,6 @@ import {
   Bell,
   BellRing,
   PenLine,
-  BarChart3,
   Save,
   Check
 } from "lucide-react";
@@ -66,11 +65,9 @@ export default function Dashboard() {
     sedekah: false,
   });
 
-  // State Fitur Baru: Tilawah Pages & Reflection
   const [tilawahPages, setTilawahPages] = useState<number>(0);
   const [reflection, setReflection] = useState<string>("");
 
-  // Load Dark Mode Preference
   useEffect(() => {
     const isDark = localStorage.getItem("theme") === "dark";
     setDarkMode(isDark);
@@ -82,7 +79,6 @@ export default function Dashboard() {
     localStorage.setItem("theme", nextMode ? "dark" : "light");
   };
 
-  // Request Notification Permission
   const requestNotif = async () => {
     if ("Notification" in window) {
       const permission = await Notification.requestPermission();
@@ -96,7 +92,6 @@ export default function Dashboard() {
     }
   };
 
-  // Fungsi Hitung Streak
   const calculateStreak = (logs: DailyLog[]) => {
     let currentStreak = 0;
     const todayStr = new Date().toISOString().split("T")[0];
@@ -134,7 +129,6 @@ export default function Dashboard() {
     setStreak(currentStreak);
   };
 
-  // Fetch Data User & Logs
   useEffect(() => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -179,7 +173,6 @@ export default function Dashboard() {
     fetchData();
   }, [router]);
 
-  // Save Function ke Supabase (Dipanggil oleh Tombol Simpan Utama)
   const saveToSupabase = async () => {
     if (!userId) return;
 
@@ -210,7 +203,7 @@ export default function Dashboard() {
       }
 
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000); // Reset notif sukses setelah 3 detik
+      setTimeout(() => setSaveSuccess(false), 3000);
     } else {
       alert("Gagal menyimpan data: " + error.message);
     }
@@ -269,7 +262,6 @@ export default function Dashboard() {
 
   return (
     <div className={`min-h-screen transition-colors duration-300 pb-28 ${darkMode ? "bg-slate-900 text-slate-100" : "bg-slate-50 text-slate-800"}`}>
-      {/* Header */}
       <header className={`${darkMode ? "bg-slate-800 border-b border-slate-700" : "bg-emerald-700"} text-white p-6 shadow-md transition-colors`}>
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <div>
@@ -282,13 +274,11 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Streak */}
             <div className="flex items-center gap-2 bg-emerald-800/80 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-amber-300 font-bold border border-emerald-600/80 text-xs sm:text-sm">
               <Flame className="h-4 w-4 fill-amber-400 text-amber-400 animate-pulse" />
               <span>{streak} Hari</span>
             </div>
 
-            {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
               className="p-2 rounded-xl bg-emerald-800/60 hover:bg-emerald-800 transition"
@@ -297,7 +287,6 @@ export default function Dashboard() {
               {darkMode ? <Sun className="h-5 w-5 text-amber-300" /> : <Moon className="h-5 w-5 text-emerald-100" />}
             </button>
 
-            {/* Notification Button */}
             <button
               onClick={requestNotif}
               className={`p-2 rounded-xl transition ${notifEnabled ? "bg-amber-500 text-slate-900" : "bg-emerald-800/60 hover:bg-emerald-800 text-emerald-100"}`}
@@ -306,7 +295,6 @@ export default function Dashboard() {
               {notifEnabled ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
             </button>
 
-            {/* Logout */}
             <button
               onClick={handleLogout}
               className="p-2 bg-emerald-800 hover:bg-emerald-900 rounded-xl text-emerald-100 transition"
@@ -319,7 +307,6 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 mt-6 space-y-6">
-        {/* Quote Motivasi */}
         <div className={`border rounded-2xl p-5 shadow-sm flex items-start gap-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200"}`}>
           <div className="p-3 bg-emerald-100 rounded-xl text-emerald-700">
             <Sparkles className="h-6 w-6" />
@@ -337,7 +324,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Riwayat 7 Hari */}
         <div className={`p-6 rounded-2xl shadow-sm border space-y-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
           <div className="flex items-center justify-between border-b pb-3 border-slate-200/20">
             <h3 className="text-md font-bold flex items-center gap-2">
@@ -376,7 +362,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Progress Capaian */}
         <div className={`p-6 rounded-2xl shadow-sm border ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
           <div className="flex justify-between items-center mb-3">
             <div>
@@ -397,7 +382,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Sholat Wajib */}
         <div className={`p-6 rounded-2xl shadow-sm border space-y-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
           <h3 className="text-md font-bold flex items-center gap-2 border-b pb-3 border-slate-200/20">
             <CalendarIcon className="h-5 w-5 text-emerald-500" />
@@ -434,7 +418,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Amalan Sunnah & Detail Tilawah */}
         <div className={`p-6 rounded-2xl shadow-sm border space-y-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
           <h3 className="text-md font-bold border-b pb-3 border-slate-200/20">
             Amalan Harian Tambahan
@@ -484,7 +467,6 @@ export default function Dashboard() {
                     {isDone ? <CheckCircle2 className="h-6 w-6 text-emerald-500" /> : <Circle className="h-6 w-6 text-slate-400" />}
                   </div>
 
-                  {/* Input Halaman Tilawah (Tampil saat Tilawah dicentang) */}
                   {item.id === "tilawah" && isDone && (
                     <div className={`p-3 rounded-xl border flex items-center justify-between text-xs ml-4 ${darkMode ? "bg-slate-700/40 border-slate-700" : "bg-emerald-50/40 border-emerald-200"}`}>
                       <span className="font-semibold text-emerald-500">Jumlah Halaman Dibaca Hari Ini:</span>
@@ -509,7 +491,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* FITUR JURNAL & REFLEKSI DIRI */}
         <div className={`p-6 rounded-2xl shadow-sm border space-y-3 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
           <h3 className="text-md font-bold flex items-center gap-2 border-b pb-3 border-slate-200/20">
             <PenLine className="h-5 w-5 text-emerald-500" />
@@ -528,7 +509,6 @@ export default function Dashboard() {
         </div>
       </main>
 
-      {/* TOMBOL SIMPAN UTAMA (STICKY BOTTOM BAR) */}
       <div className="fixed bottom-4 left-4 right-4 max-w-4xl mx-auto z-30">
         <button
           onClick={saveToSupabase}
@@ -539,9 +519,7 @@ export default function Dashboard() {
               : "bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98]"
           } disabled:opacity-50 disabled:cursor-not-allowed`}
         >
-          {saving ? (git add .
-git commit -m "Tambahkan tombol simpan aktivitas harian"
-git push origin main
+          {saving ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
               <span>Menyimpan Aktivitas Hari Ini...</span>
