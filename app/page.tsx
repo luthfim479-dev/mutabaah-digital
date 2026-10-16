@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { 
@@ -26,6 +26,7 @@ import {
 
 interface DailyLog {
   date: string;
+  created_at?: string;
   subuh: boolean;
   dzuhur: boolean;
   ashar: boolean;
@@ -44,8 +45,12 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [streak, setStreak] = useState(0);
   const [historyLogs, setHistoryLogs] = useState<DailyLog[]>([]);
+  const [history, setHistory] = useState<DailyLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // State Dark Mode
   const [darkMode, setDarkMode] = useState(false);
@@ -67,6 +72,33 @@ export default function Dashboard() {
 
   const [tilawahPages, setTilawahPages] = useState<number>(0);
   const [reflection, setReflection] = useState<string>("");
+
+  const fetchHistory = useCallback(async (id: string) => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from("daily_logs")
+        .select("date, tilawah_pages, reflection, created_at")
+        .eq("user_id", id)
+        .order("created_at", { ascending: false })
+        .limit(7);
+
+      if (error) {
+        setHistoryError(error.message);
+        return;
+      }
+
+      setHistory((data ?? []) as DailyLog[]);
+    } catch (error) {
+      setHistoryError(
+        error instanceof Error ? error.message : "Terjadi kesalahan saat memuat riwayat."
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     const isDark = localStorage.getItem("theme") === "dark";
@@ -139,6 +171,9 @@ export default function Dashboard() {
       }
 
       setUserId(user.id);
+      setUserEmail(user.email ?? null);
+      await fetchHistory(user.id);
+
       const todayStr = new Date().toISOString().split("T")[0];
 
       const { data: allLogs } = await supabase
@@ -171,9 +206,9 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [router]);
+  }, [fetchHistory, router]);
 
-  const saveToSupabase = async () => {
+  const handleSave = async () => {
     if (!userId) return;
 
     setSaving(true);
@@ -192,6 +227,8 @@ export default function Dashboard() {
     );
 
     if (!error) {
+      await fetchHistory(userId);
+
       const { data: updatedLogs } = await supabase
         .from("daily_logs")
         .select("*")
@@ -217,7 +254,12 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      alert("Gagal keluar: " + error.message);
+      return;
+    }
+
     router.push("/login");
   };
 
@@ -263,8 +305,8 @@ export default function Dashboard() {
   return (
     <div className={`min-h-screen transition-colors duration-300 pb-28 ${darkMode ? "bg-slate-900 text-slate-100" : "bg-slate-50 text-slate-800"}`}>
       <header className={`${darkMode ? "bg-slate-800 border-b border-slate-700" : "bg-emerald-700"} text-white p-6 shadow-md transition-colors`}>
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <div>
+        <div className="max-w-4xl mx-auto flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Moon className="h-6 w-6 text-emerald-300" />
               Mutaba'ah Digital
@@ -272,8 +314,13 @@ export default function Dashboard() {
             <p className="text-emerald-100 text-sm mt-1">
               Pantau & tingkatkan kualitas ibadah harianmu
             </p>
+            {userEmail && (
+              <p className="text-emerald-100 text-xs mt-1 truncate">
+                Login sebagai: {userEmail}
+              </p>
+            )}
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
             <div className="flex items-center gap-2 bg-emerald-800/80 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-amber-300 font-bold border border-emerald-600/80 text-xs sm:text-sm">
               <Flame className="h-4 w-4 fill-amber-400 text-amber-400 animate-pulse" />
               <span>{streak} Hari</span>
@@ -297,10 +344,11 @@ export default function Dashboard() {
 
             <button
               onClick={handleLogout}
-              className="p-2 bg-emerald-800 hover:bg-emerald-900 rounded-xl text-emerald-100 transition"
+              className="flex items-center gap-2 px-3 py-2 bg-emerald-800 hover:bg-emerald-900 rounded-xl text-emerald-100 transition"
               title="Keluar"
             >
               <LogOut className="h-5 w-5" />
+              <span className="text-sm font-semibold">Keluar</span>
             </button>
           </div>
         </div>
@@ -479,7 +527,7 @@ export default function Dashboard() {
                             const val = parseInt(e.target.value) || 0;
                             setTilawahPages(val);
                           }}
-                          className={`w-16 px-2 py-1 border rounded-lg text-center font-bold outline-none ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-300"}`}
+                          className={`w-16 px-2 py-1 border rounded-lg text-base text-center font-bold outline-none ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-300"}`}
                         />
                         <span>Halaman</span>
                       </div>
@@ -504,14 +552,56 @@ export default function Dashboard() {
             placeholder="Contoh: Hari ini merasa tenang setelah dzikir, besok harus lebih tepat waktu sholat Dzuhur..."
             value={reflection}
             onChange={(e) => setReflection(e.target.value)}
-            className={`w-full p-3 rounded-xl border text-sm outline-none transition ${darkMode ? "bg-slate-900 border-slate-700 focus:border-emerald-500 text-slate-200" : "bg-slate-50 border-slate-200 focus:border-emerald-500 text-slate-800"}`}
+            className={`w-full p-3 rounded-xl border text-base outline-none transition ${darkMode ? "bg-slate-900 border-slate-700 focus:border-emerald-500 text-slate-200" : "bg-slate-50 border-slate-200 focus:border-emerald-500 text-slate-800"}`}
           />
         </div>
+
+        <section className={`p-6 rounded-2xl shadow-sm border space-y-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
+          <h3 className="text-md font-bold flex items-center gap-2 border-b pb-3 border-slate-200/20">
+            <History className="h-5 w-5 text-emerald-500" />
+            Riwayat Ibadah
+          </h3>
+
+          {historyLoading ? (
+            <p className="text-sm text-slate-400">Memuat riwayat ibadah...</p>
+          ) : historyError ? (
+            <p role="alert" className="text-sm text-red-500">
+              Gagal memuat riwayat: {historyError}
+            </p>
+          ) : history.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Belum ada riwayat ibadah yang tersimpan.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {history.map((log) => (
+                <li
+                  key={log.date}
+                  className={`rounded-xl border p-4 ${darkMode ? "bg-slate-700/40 border-slate-700" : "bg-slate-50 border-slate-200"}`}
+                >
+                  <p className="font-semibold">
+                    {new Date(`${log.date}T00:00:00`).toLocaleDateString("id-ID", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Tilawah: {log.tilawah_pages ?? 0} halaman
+                  </p>
+                  <p className="mt-2 text-sm whitespace-pre-wrap break-words">
+                    {log.reflection?.trim() || "Belum ada catatan refleksi."}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
 
       <div className="fixed bottom-4 left-4 right-4 max-w-4xl mx-auto z-30">
         <button
-          onClick={saveToSupabase}
+          onClick={handleSave}
           disabled={saving}
           className={`w-full py-4 px-6 rounded-2xl font-bold text-sm shadow-xl flex items-center justify-center gap-2 transition-all duration-300 text-white ${
             saveSuccess
