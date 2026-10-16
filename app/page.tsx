@@ -537,6 +537,23 @@ export default function Dashboard() {
           )}
         </button>
       </div>
+
+      {saveSuccess && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-40 flex items-center gap-3 rounded-xl border px-4 py-3 shadow-lg ${
+            darkMode
+              ? "bg-emerald-950 border-emerald-700 text-emerald-100"
+              : "bg-white border-emerald-200 text-emerald-800"
+          }`}
+        >
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+          <span className="text-sm font-semibold">
+            Data amalan berhasil disimpan!
+          </span>
+        </div>
+      )}
     </div>
   );
 }
