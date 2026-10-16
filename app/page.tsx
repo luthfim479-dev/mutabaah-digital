@@ -165,19 +165,37 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
+    let isMounted = true;
+
+    const checkUserSession = async () => {
       let redirectingToLogin = false;
-
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-        if (!user) {
+        if (sessionError || !session) {
+          if (sessionError) {
+            console.error("Sesi Supabase tidak valid:", sessionError);
+          }
           redirectingToLogin = true;
-          router.push("/login");
+          try {
+            const { error: signOutError } = await supabase.auth.signOut();
+            if (signOutError) {
+              console.error("Gagal membersihkan sesi Supabase:", signOutError);
+            }
+          } catch (signOutError) {
+            console.error("Gagal membersihkan sesi Supabase:", signOutError);
+          } finally {
+            if (isMounted) {
+              window.location.href = "/login";
+            }
+          }
           return;
         }
 
+        const { user } = session;
         setUserId(user.id);
         setUserEmail(user.email ?? null);
 
@@ -191,6 +209,8 @@ export default function Dashboard() {
           .maybeSingle();
 
         if (todayError) throw todayError;
+
+        if (!isMounted) return;
 
         if (todayData) {
           const log = todayData as DailyLog;
@@ -208,18 +228,24 @@ export default function Dashboard() {
           setReflection(log.reflection || "");
         }
       } catch (error) {
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : "Terjadi kesalahan saat memuat aktivitas hari ini."
-        );
+        if (isMounted) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Terjadi kesalahan saat memuat aktivitas hari ini."
+          );
+        }
       } finally {
-        if (!redirectingToLogin) setLoading(false);
+        if (isMounted && !redirectingToLogin) setLoading(false);
       }
     };
 
-    void fetchData();
-  }, [router]);
+    void checkUserSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSave = async () => {
     if (!userId) return;
