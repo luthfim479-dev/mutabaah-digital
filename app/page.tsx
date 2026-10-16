@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { 
   CheckCircle2, 
   Circle, 
-  Flame, 
   BookOpen, 
   HeartHandshake, 
   Moon, 
@@ -14,8 +14,6 @@ import {
   Calendar as CalendarIcon,
   LogOut,
   Loader2,
-  History,
-  TrendingUp,
   Sun,
   Bell,
   BellRing,
@@ -39,18 +37,60 @@ interface DailyLog {
   reflection?: string;
 }
 
+const getLocalDateString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const dailyQuotes = [
+  {
+    text: "Sesungguhnya bersama kesulitan ada kemudahan.",
+    source: "QS. Al-Insyirah: 5–6",
+    url: "https://quran.com/94/5-6?translations=33",
+  },
+  {
+    text: "Allah tidak membebani seseorang melainkan sesuai dengan kesanggupannya.",
+    source: "QS. Al-Baqarah: 286",
+    url: "https://quran.com/2/286?translations=33",
+  },
+  {
+    text: "Jika kamu bersyukur, niscaya Aku akan menambah (nikmat) kepadamu.",
+    source: "QS. Ibrahim: 7",
+    url: "https://quran.com/14/7?translations=33",
+  },
+  {
+    text: "Janganlah kamu bersikap lemah dan jangan pula bersedih hati.",
+    source: "QS. Ali 'Imran: 139",
+    url: "https://quran.com/3/139?translations=33",
+  },
+  {
+    text: "Mohonlah pertolongan dengan sabar dan salat. Sesungguhnya Allah beserta orang-orang yang sabar.",
+    source: "QS. Al-Baqarah: 153",
+    url: "https://quran.com/2/153?translations=33",
+  },
+  {
+    text: "Ingatlah, hanya dengan mengingat Allah hati menjadi tenteram.",
+    source: "QS. Ar-Ra'd: 28",
+    url: "https://quran.com/13/28?translations=33",
+  },
+  {
+    text: "Janganlah berputus asa dari rahmat Allah.",
+    source: "QS. Az-Zumar: 53",
+    url: "https://quran.com/39/53?translations=33",
+  },
+];
+
 export default function Dashboard() {
   const router = useRouter();
+  const [dailyQuoteIndex, setDailyQuoteIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [streak, setStreak] = useState(0);
-  const [historyLogs, setHistoryLogs] = useState<DailyLog[]>([]);
-  const [history, setHistory] = useState<DailyLog[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // State Dark Mode
   const [darkMode, setDarkMode] = useState(false);
@@ -72,32 +112,32 @@ export default function Dashboard() {
 
   const [tilawahPages, setTilawahPages] = useState<number>(0);
   const [reflection, setReflection] = useState<string>("");
+  const dailyQuote = dailyQuotes[dailyQuoteIndex];
 
-  const fetchHistory = useCallback(async (id: string) => {
-    setHistoryLoading(true);
-    setHistoryError(null);
+  useEffect(() => {
+    let midnightTimer: number | undefined;
 
-    try {
-      const { data, error } = await supabase
-        .from("daily_logs")
-        .select("date, tilawah_pages, reflection, created_at")
-        .eq("user_id", id)
-        .order("created_at", { ascending: false })
-        .limit(7);
+    const updateQuote = () => {
+      const now = new Date();
+      const dateKey = getLocalDateString(now);
+      const dateSeed = Number(dateKey.replaceAll("-", ""));
+      setDailyQuoteIndex(dateSeed % dailyQuotes.length);
 
-      if (error) {
-        setHistoryError(error.message);
-        return;
-      }
-
-      setHistory((data ?? []) as DailyLog[]);
-    } catch (error) {
-      setHistoryError(
-        error instanceof Error ? error.message : "Terjadi kesalahan saat memuat riwayat."
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 0, 0);
+      midnightTimer = window.setTimeout(
+        updateQuote,
+        nextMidnight.getTime() - now.getTime()
       );
-    } finally {
-      setHistoryLoading(false);
-    }
+    };
+
+    const initialTimer = window.setTimeout(updateQuote, 0);
+    return () => {
+      window.clearTimeout(initialTimer);
+      if (midnightTimer !== undefined) {
+        window.clearTimeout(midnightTimer);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -124,96 +164,69 @@ export default function Dashboard() {
     }
   };
 
-  const calculateStreak = (logs: DailyLog[]) => {
-    let currentStreak = 0;
-    const todayStr = new Date().toISOString().split("T")[0];
-    
-    const sortedLogs = [...logs].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-
-    let checkDate = new Date();
-    
-    const todayLog = sortedLogs.find((l) => l.date === todayStr);
-    const hasTodayActivity = todayLog && Object.entries(todayLog).some(([key, val]) => key !== "date" && val === true);
-
-    if (!hasTodayActivity) {
-      checkDate.setDate(checkDate.getDate() - 1);
-    }
-
-    while (true) {
-      const dateStr = checkDate.toISOString().split("T")[0];
-      const logFound = sortedLogs.find((l) => l.date === dateStr);
-
-      if (logFound) {
-        const isFilled = Object.entries(logFound).some(([key, val]) => key !== "date" && val === true);
-        if (isFilled) {
-          currentStreak++;
-          checkDate.setDate(checkDate.getDate() - 1);
-        } else {
-          break;
-        }
-      } else {
-        break;
-      }
-    }
-
-    setStreak(currentStreak);
-  };
-
   useEffect(() => {
     const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      let redirectingToLogin = false;
 
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
 
-      setUserId(user.id);
-      setUserEmail(user.email ?? null);
-      await fetchHistory(user.id);
-
-      const todayStr = new Date().toISOString().split("T")[0];
-
-      const { data: allLogs } = await supabase
-        .from("daily_logs")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (allLogs) {
-        setHistoryLogs(allLogs as DailyLog[]);
-        calculateStreak(allLogs as DailyLog[]);
-
-        const todayData = allLogs.find((log) => log.date === todayStr);
-        if (todayData) {
-          setHabits({
-            subuh: todayData.subuh || false,
-            dzuhur: todayData.dzuhur || false,
-            ashar: todayData.ashar || false,
-            maghrib: todayData.maghrib || false,
-            isya: todayData.isya || false,
-            tilawah: todayData.tilawah || false,
-            dzikir: todayData.dzikir || false,
-            sedekah: todayData.sedekah || false,
-          });
-          setTilawahPages(todayData.tilawah_pages || 0);
-          setReflection(todayData.reflection || "");
+        if (!user) {
+          redirectingToLogin = true;
+          router.push("/login");
+          return;
         }
-      }
 
-      setLoading(false);
+        setUserId(user.id);
+        setUserEmail(user.email ?? null);
+
+        const todayStr = getLocalDateString(new Date());
+
+        const { data: todayData, error: todayError } = await supabase
+          .from("daily_logs")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("date", todayStr)
+          .maybeSingle();
+
+        if (todayError) throw todayError;
+
+        if (todayData) {
+          const log = todayData as DailyLog;
+          setHabits({
+            subuh: log.subuh || false,
+            dzuhur: log.dzuhur || false,
+            ashar: log.ashar || false,
+            maghrib: log.maghrib || false,
+            isya: log.isya || false,
+            tilawah: log.tilawah || false,
+            dzikir: log.dzikir || false,
+            sedekah: log.sedekah || false,
+          });
+          setTilawahPages(log.tilawah_pages || 0);
+          setReflection(log.reflection || "");
+        }
+      } catch (error) {
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat memuat aktivitas hari ini."
+        );
+      } finally {
+        if (!redirectingToLogin) setLoading(false);
+      }
     };
 
-    fetchData();
-  }, [fetchHistory, router]);
+    void fetchData();
+  }, [router]);
 
   const handleSave = async () => {
     if (!userId) return;
 
     setSaving(true);
     setSaveSuccess(false);
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateString(new Date());
 
     const { error } = await supabase.from("daily_logs").upsert(
       {
@@ -227,18 +240,6 @@ export default function Dashboard() {
     );
 
     if (!error) {
-      await fetchHistory(userId);
-
-      const { data: updatedLogs } = await supabase
-        .from("daily_logs")
-        .select("*")
-        .eq("user_id", userId);
-
-      if (updatedLogs) {
-        setHistoryLogs(updatedLogs as DailyLog[]);
-        calculateStreak(updatedLogs as DailyLog[]);
-      }
-
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
@@ -267,37 +268,28 @@ export default function Dashboard() {
   const totalHabits = Object.keys(habits).length;
   const progressPercentage = Math.round((completedCount / totalHabits) * 100);
 
-  const getLast7Days = () => {
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split("T")[0];
-      const dayName = d.toLocaleDateString("id-ID", { weekday: "short" });
-      const dayNumber = d.getDate();
-
-      const log = historyLogs.find((l) => l.date === dateStr);
-      let count = 0;
-      if (log) {
-        count = Object.entries(log).filter(([k, v]) => k !== "date" && k !== "tilawah_pages" && k !== "reflection" && v === true).length;
-      }
-
-      days.push({
-        dateStr,
-        dayName,
-        dayNumber,
-        count,
-        percentage: Math.round((count / 8) * 100),
-      });
-    }
-    return days;
-  };
-
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center gap-2 ${darkMode ? "bg-slate-900 text-emerald-400" : "bg-slate-50 text-emerald-700"}`}>
         <Loader2 className="h-6 w-6 animate-spin" />
         <span className="font-semibold text-sm">Memuat data ibadah...</span>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+        <div role="alert" className="max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <p className="font-semibold text-red-700">Gagal memuat aktivitas hari ini.</p>
+          <p className="mt-2 text-sm text-slate-600">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            Coba lagi
+          </button>
+        </div>
       </div>
     );
   }
@@ -309,7 +301,7 @@ export default function Dashboard() {
           <div className="min-w-0">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Moon className="h-6 w-6 text-emerald-300" />
-              Mutaba'ah Digital
+              Mutaba&apos;ah Digital
             </h1>
             <p className="text-emerald-100 text-sm mt-1">
               Pantau & tingkatkan kualitas ibadah harianmu
@@ -321,11 +313,6 @@ export default function Dashboard() {
             )}
           </div>
           <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
-            <div className="flex items-center gap-2 bg-emerald-800/80 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-amber-300 font-bold border border-emerald-600/80 text-xs sm:text-sm">
-              <Flame className="h-4 w-4 fill-amber-400 text-amber-400 animate-pulse" />
-              <span>{streak} Hari</span>
-            </div>
-
             <button
               onClick={toggleDarkMode}
               className="p-2 rounded-xl bg-emerald-800/60 hover:bg-emerald-800 transition"
@@ -355,60 +342,37 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 mt-6 space-y-6">
-        <div className={`border rounded-2xl p-5 shadow-sm flex items-start gap-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200"}`}>
-          <div className="p-3 bg-emerald-100 rounded-xl text-emerald-700">
+        <div className="rounded-2xl border border-emerald-700/30 bg-gradient-to-r from-emerald-800 to-teal-700 p-5 text-white shadow-lg sm:p-6">
+          <div className="flex items-start gap-4">
+          <div className="rounded-xl bg-white/15 p-3 text-emerald-100">
             <Sparkles className="h-6 w-6" />
           </div>
-          <div>
-            <span className="text-xs font-bold tracking-wider text-emerald-500 uppercase">
-              Quote Motivasi
+          <div className="min-w-0">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-100">
+              Quotes Harian
             </span>
-            <p className="font-medium mt-1 italic">
-              "Amalan yang paling dicintai oleh Allah adalah amalan yang kontinyu (istiqomah) walaupun sedikit."
+            <p className="mt-2 text-base font-medium italic leading-relaxed sm:text-lg">
+              “{dailyQuote.text}”
             </p>
-            <p className="text-xs text-slate-400 mt-1 font-semibold">
-              — HR. Muslim
-            </p>
+            <a
+              href={dailyQuote.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex text-xs font-semibold text-emerald-100 underline decoration-emerald-200/60 underline-offset-4 hover:text-white"
+            >
+              Sumber: {dailyQuote.source} · Baca ayat
+            </a>
+          </div>
           </div>
         </div>
 
-        <div className={`p-6 rounded-2xl shadow-sm border space-y-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
-          <div className="flex items-center justify-between border-b pb-3 border-slate-200/20">
-            <h3 className="text-md font-bold flex items-center gap-2">
-              <History className="h-5 w-5 text-emerald-500" />
-              Riwayat 7 Hari Terakhir
-            </h3>
-            <span className="text-xs text-slate-400 font-medium flex items-center gap-1">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-              Konsistensi
-            </span>
-          </div>
-
-          <div className="grid grid-cols-7 gap-2">
-            {getLast7Days().map((day, idx) => (
-              <div
-                key={idx}
-                className={`flex flex-col items-center p-3 rounded-xl border transition ${
-                  day.count > 0
-                    ? darkMode ? "bg-slate-700/60 border-emerald-500/40" : "bg-emerald-50/60 border-emerald-200"
-                    : darkMode ? "bg-slate-800/40 border-slate-700" : "bg-slate-50 border-slate-200 opacity-60"
-                }`}
-              >
-                <span className="text-xs font-medium text-slate-400">{day.dayName}</span>
-                <span className="text-sm font-bold my-1">{day.dayNumber}</span>
-                <div className="w-full bg-slate-200/20 h-1.5 rounded-full mt-1 overflow-hidden">
-                  <div
-                    className="bg-emerald-500 h-full"
-                    style={{ width: `${day.percentage}%` }}
-                  ></div>
-                </div>
-                <span className="text-[10px] font-semibold text-emerald-500 mt-1">
-                  {day.count}/8
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Link
+          href="/riwayat"
+          className="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+        >
+          <span aria-hidden="true">📜</span>
+          Lihat Riwayat Ibadah
+        </Link>
 
         <div className={`p-6 rounded-2xl shadow-sm border ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
           <div className="flex justify-between items-center mb-3">
@@ -556,47 +520,6 @@ export default function Dashboard() {
           />
         </div>
 
-        <section className={`p-6 rounded-2xl shadow-sm border space-y-4 ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-100"}`}>
-          <h3 className="text-md font-bold flex items-center gap-2 border-b pb-3 border-slate-200/20">
-            <History className="h-5 w-5 text-emerald-500" />
-            Riwayat Ibadah
-          </h3>
-
-          {historyLoading ? (
-            <p className="text-sm text-slate-400">Memuat riwayat ibadah...</p>
-          ) : historyError ? (
-            <p role="alert" className="text-sm text-red-500">
-              Gagal memuat riwayat: {historyError}
-            </p>
-          ) : history.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              Belum ada riwayat ibadah yang tersimpan.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {history.map((log) => (
-                <li
-                  key={log.date}
-                  className={`rounded-xl border p-4 ${darkMode ? "bg-slate-700/40 border-slate-700" : "bg-slate-50 border-slate-200"}`}
-                >
-                  <p className="font-semibold">
-                    {new Date(`${log.date}T00:00:00`).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Tilawah: {log.tilawah_pages ?? 0} halaman
-                  </p>
-                  <p className="mt-2 text-sm whitespace-pre-wrap break-words">
-                    {log.reflection?.trim() || "Belum ada catatan refleksi."}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
       </main>
 
       <div className="fixed bottom-4 left-4 right-4 max-w-4xl mx-auto z-30">
