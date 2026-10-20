@@ -44,6 +44,30 @@ const getLocalDateString = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const calculateStreak = (dates: string[], today = new Date()) => {
+  const loggedDates = new Set(dates);
+  const todayString = getLocalDateString(today);
+  let currentDate = todayString;
+
+  if (!loggedDates.has(currentDate)) {
+    const yesterday = new Date(`${todayString}T00:00:00Z`);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    currentDate = yesterday.toISOString().slice(0, 10);
+  }
+
+  if (!loggedDates.has(currentDate)) return 0;
+
+  let streak = 0;
+  while (loggedDates.has(currentDate)) {
+    streak += 1;
+    const previousDate = new Date(`${currentDate}T00:00:00Z`);
+    previousDate.setUTCDate(previousDate.getUTCDate() - 1);
+    currentDate = previousDate.toISOString().slice(0, 10);
+  }
+
+  return streak;
+};
+
 const dailyQuotes = [
   {
     text: "Sesungguhnya bersama kesulitan ada kemudahan.",
@@ -91,6 +115,8 @@ export default function Dashboard() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [historyDates, setHistoryDates] = useState<string[]>([]);
+  const [streakCount, setStreakCount] = useState(0);
 
   // State Dark Mode
   const [darkMode, setDarkMode] = useState(false);
@@ -201,19 +227,31 @@ export default function Dashboard() {
 
         const todayStr = getLocalDateString(new Date());
 
-        const { data: todayData, error: todayError } = await supabase
-          .from("daily_logs")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("date", todayStr)
-          .maybeSingle();
+        const [todayResult, historyResult] = await Promise.all([
+          supabase
+            .from("daily_logs")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("date", todayStr)
+            .maybeSingle(),
+          supabase
+            .from("daily_logs")
+            .select("date")
+            .eq("user_id", user.id)
+            .order("date", { ascending: false }),
+        ]);
 
-        if (todayError) throw todayError;
+        if (todayResult.error) throw todayResult.error;
+        if (historyResult.error) throw historyResult.error;
 
         if (!isMounted) return;
 
-        if (todayData) {
-          const log = todayData as DailyLog;
+        const dates = (historyResult.data ?? []).map((entry) => entry.date);
+        setHistoryDates(dates);
+        setStreakCount(calculateStreak(dates));
+
+        if (todayResult.data) {
+          const log = todayResult.data as DailyLog;
           setHabits({
             subuh: log.subuh || false,
             dzuhur: log.dzuhur || false,
@@ -266,6 +304,9 @@ export default function Dashboard() {
     );
 
     if (!error) {
+      const updatedDates = [...new Set([...historyDates, todayStr])];
+      setHistoryDates(updatedDates);
+      setStreakCount(calculateStreak(updatedDates));
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
@@ -337,6 +378,15 @@ export default function Dashboard() {
                 Login sebagai: {userEmail}
               </p>
             )}
+            <div
+              aria-label={`Streak ${streakCount} hari`}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-200/40 bg-amber-400/20 px-3 py-2 text-amber-100 shadow-sm"
+            >
+              <span aria-hidden="true" className="text-xl">🔥</span>
+              <span className="text-sm font-bold">
+                {streakCount} hari streak
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
             <button
